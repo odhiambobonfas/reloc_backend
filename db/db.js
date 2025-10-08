@@ -3,22 +3,43 @@ require("dotenv").config();
 
 const isProduction = process.env.NODE_ENV === "production";
 
+// Use Railway's environment variables
 const pool = new Pool({
-  user: process.env.DB_USER || "postgres",
-  host: process.env.DB_HOST || "192.168.20.207",
-  database: process.env.DB_NAME || "reloc",
-  password: process.env.DB_PASSWORD || "Othina78",
-  port: process.env.DB_PORT || 5432,
-  max: 20, // Maximum number of clients in the pool
-  idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-  connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection could not be established
-  ssl: isProduction
-    ? {
-        require: true,
-        rejectUnauthorized: false, // ✅ required for Railway
-      }
-    : false,
+  // Use DATABASE_URL if available (Railway provides this)
+  connectionString: process.env.DATABASE_URL,
+  
+  // Fallback to individual variables
+  user: process.env.PGUSER || process.env.DB_USER || "postgres",
+  host: process.env.PGHOST || process.env.DB_HOST || "ballast.proxy.rlwy.net",
+  database: process.env.PGDATABASE || process.env.DB_NAME || "railway",
+  password: process.env.PGPASSWORD || process.env.DB_PASSWORD,
+  port: process.env.PGPORT || process.env.DB_PORT || 30559,
+  
+  // Connection pool settings
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000, // Increased timeout for Railway
+  
+  // SSL configuration for Railway
+  ssl: isProduction ? { 
+    rejectUnauthorized: false 
+  } : false
 });
+
+// Alternative configuration if DATABASE_URL is not working:
+// const pool = new Pool({
+//   user: process.env.PGUSER || "postgres",
+//   host: process.env.PGHOST || "ballast.proxy.rlwy.net",
+//   database: process.env.PGDATABASE || "railway",
+//   password: process.env.PGPASSWORD,
+//   port: process.env.PGPORT || 30559,
+//   max: 20,
+//   idleTimeoutMillis: 30000,
+//   connectionTimeoutMillis: 10000,
+//   ssl: {
+//     rejectUnauthorized: false
+//   }
+// });
 
 // Log connection status
 pool.on("connect", () => {
@@ -32,8 +53,9 @@ pool.on("error", (err) => {
 
 // Test database connection
 const testConnection = async () => {
+  let client;
   try {
-    const client = await pool.connect();
+    client = await pool.connect();
     console.log("✅ PostgreSQL connected successfully!");
 
     // Run a simple test query
@@ -44,14 +66,20 @@ const testConnection = async () => {
   } catch (err) {
     console.error("❌ PostgreSQL connection error:", err.message);
     console.error("❌ Connection details:", {
-      host: process.env.DB_HOST || "192.168.20.207",
-      port: process.env.DB_PORT || 5432,
-      database: process.env.DB_NAME || "reloc",
-      user: process.env.DB_USER || "postgres",
+      host: process.env.PGHOST || process.env.DB_HOST,
+      port: process.env.PGPORT || process.env.DB_PORT,
+      database: process.env.PGDATABASE || process.env.DB_NAME,
+      user: process.env.PGUSER || process.env.DB_USER,
+      usingSSL: isProduction
     });
 
+    if (client) {
+      client.release();
+    }
+    
     if (isProduction) {
-      process.exit(-1);
+      // Don't exit immediately in production, retry might work
+      console.log("⚠️  Continuing without database connection...");
     }
   }
 };
