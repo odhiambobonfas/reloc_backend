@@ -49,9 +49,14 @@ const corsOptions = {
     const allowedOrigins = process.env.ALLOWED_ORIGINS
       ? process.env.ALLOWED_ORIGINS.split(',')
       : [];
-    if (!origin || allowedOrigins.some(o => origin.startsWith(o))) {
+    
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin) || allowedOrigins.some(o => origin.startsWith(o))) {
       callback(null, true);
     } else {
+      console.log('❌ CORS blocked origin:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -61,19 +66,95 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-/* ✅ PostgreSQL Connection */
-if (!process.env.DATABASE_URL) {
-  console.error('❌ FATAL ERROR: DATABASE_URL is not defined.');
-  process.exit(1);
+/* ✅ Enhanced PostgreSQL Connection with Fallbacks */
+console.log('🔧 Database Configuration:');
+console.log('🔧 DATABASE_URL:', process.env.DATABASE_URL ? 'Set' : 'Not set');
+console.log('🔧 PGHOST:', process.env.PGHOST || 'Not set');
+console.log('🔧 NODE_ENV:', process.env.NODE_ENV);
+
+let poolConfig;
+
+if (process.env.DATABASE_URL) {
+  // Use DATABASE_URL as primary connection method
+  poolConfig = {
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+  };
+} else if (process.env.PGHOST) {
+  // Fallback to individual Railway PostgreSQL variables
+  poolConfig = {
+    user: process.env.PGUSER,
+    host: process.env.PGHOST,
+    database: process.env.PGDATABASE,
+    password: process.env.PGPASSWORD,
+    port: process.env.PGPORT,
+    ssl: { rejectUnauthorized: false }
+  };
+} else {
+  // Final fallback for development
+  poolConfig = {
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    password: process.env.DB_PASSWORD,
+    port: process.env.DB_PORT,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  };
 }
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+// Add connection pool settings
+Object.assign(poolConfig, {
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 15000,
+  maxUses: 7500,
 });
 
-pool.on('connect', () => console.log('✅ Connected to PostgreSQL'));
-pool.on('error', (err) => console.error('❌ PostgreSQL error:', err));
+const pool = new Pool(poolConfig);
+
+// Enhanced connection event handling
+pool.on('connect', () => {
+  console.log('✅ New PostgreSQL client connected');
+});
+
+pool.on('error', (err) => {
+  console.error('❌ PostgreSQL pool error:', err.message);
+  // Don't exit process in production, let it recover
+  if (process.env.NODE_ENV !== 'production') {
+    process.exit(-1);
+  }
+});
+
+// Test database connection on startup
+const testDatabaseConnection = async () => {
+  let client;
+  try {
+    client = await pool.connect();
+    console.log('✅ PostgreSQL connected successfully!');
+    
+    const result = await client.query('SELECT NOW() as current_time, version() as version');
+    console.log('✅ Database time:', result.rows[0].current_time);
+    console.log('✅ PostgreSQL version:', result.rows[0].version.split(',')[0]);
+    
+    client.release();
+  } catch (err) {
+    console.error('❌ Database connection test failed:', err.message);
+    if (client) client.release();
+    
+    // In production, continue without database connection
+    if (process.env.NODE_ENV === 'production') {
+      console.log('⚠️  Continuing without database connection...');
+    } else {
+      console.log('❌ Exiting due to database connection failure in development');
+      process.exit(1);
+    }
+  }
+};
+
+// Test connection after a short delay
+setTimeout(() => {
+  testDatabaseConnection();
+}, 2000);
 
 global.db = pool;
 
@@ -105,24 +186,45 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/notifications', notificationSettingsRoutes);
 app.use('/api', uploadRoute);
 
-/* ✅ Database Test Endpoint */
+/* ✅ Enhanced Database Test Endpoint */
 app.get('/db-test', async (req, res) => {
   try {
-    const result = await pool.query('SELECT NOW()');
-    res.json({ connected: true, time: result.rows[0] });
+    const result = await pool.query('SELECT NOW() as current_time, version() as version');
+    res.json({ 
+      connected: true, 
+      time: result.rows[0].current_time,
+      version: result.rows[0].version.split(',')[0],
+      environment: process.env.NODE_ENV 
+    });
   } catch (err) {
-    res.status(500).json({ connected: false, error: err.message });
+    res.status(500).json({ 
+      connected: false, 
+      error: err.message,
+      environment: process.env.NODE_ENV 
+    });
   }
 });
 
-/* ✅ Health Check */
-app.get('/health', (req, res) => {
-  res.status(200).json({
+/* ✅ Health Check with DB status */
+app.get('/health', async (req, res) => {
+  const healthCheck = {
     status: 'OK',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
-  });
+    database: 'unknown'
+  };
+
+  try {
+    await pool.query('SELECT 1');
+    healthCheck.database = 'connected';
+  } catch (err) {
+    healthCheck.database = 'disconnected';
+    healthCheck.database_error = err.message;
+  }
+
+  const statusCode = healthCheck.database === 'connected' ? 200 : 503;
+  res.status(statusCode).json(healthCheck);
 });
 
 /* ✅ Default Home */
@@ -137,6 +239,7 @@ app.get('/', (req, res) => {
       payments: '/api/mpesa',
       notifications: '/api/notifications',
       health: '/health',
+      dbTest: '/db-test'
     },
   });
 });
@@ -159,15 +262,15 @@ app.use('*', (req, res) => {
 });
 
 /* ✅ Graceful Shutdown */
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('SIGTERM received. Shutting down gracefully...');
-  pool.end();
+  await pool.end();
   process.exit(0);
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('SIGINT received. Shutting down gracefully...');
-  pool.end();
+  await pool.end();
   process.exit(0);
 });
 
@@ -176,4 +279,6 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Server running on port ${PORT}`);
   console.log(`✅ Health Check → http://localhost:${PORT}/health`);
+  console.log(`✅ Database Test → http://localhost:${PORT}/db-test`);
+  console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
 });
