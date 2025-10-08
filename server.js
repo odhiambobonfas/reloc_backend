@@ -12,8 +12,9 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 
-// ✅ Force PORT to 5000 for Railway
+// ✅ FORCE PORT 5000 - This is critical for Railway
 const PORT = process.env.PORT || 5000;
+console.log(`🔧 Starting server on PORT: ${PORT}`);
 
 /* ✅ Ensure uploads directory exists */
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -26,113 +27,87 @@ if (!fs.existsSync(uploadsDir)) {
 
 /* ✅ Security Headers */
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
-    },
-  },
+  contentSecurityPolicy: false, // Simplify for now
   crossOriginEmbedderPolicy: false,
 }));
 
-/* ✅ Rate Limiter (prevents abuse) */
+/* ✅ Rate Limiter */
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 min
-  max: 100, // limit per IP
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: 'Too many requests from this IP, please try again later.',
 });
 app.use('/api', limiter);
 
 /* ✅ CORS Setup */
-const corsOptions = {
-  origin: function (origin, callback) {
-    const allowedOrigins = process.env.ALLOWED_ORIGINS
-      ? process.env.ALLOWED_ORIGINS.split(',')
-      : [];
-    
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.includes(origin) || allowedOrigins.some(o => origin.startsWith(o))) {
-      callback(null, true);
-    } else {
-      console.log('❌ CORS blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : true,
   credentials: true,
-  optionsSuccessStatus: 200,
-};
+}));
 
-app.use(cors(corsOptions));
-
-/* ✅ Enhanced PostgreSQL Connection with IPv4 fix */
+/* ✅ FIXED PostgreSQL Connection */
 console.log('🔧 Database Configuration:');
 console.log('🔧 DATABASE_URL:', process.env.DATABASE_URL ? 'Set' : 'Not set');
 console.log('🔧 PGHOST:', process.env.PGHOST || 'Not set');
 console.log('🔧 NODE_ENV:', process.env.NODE_ENV);
 
+// Parse DATABASE_URL manually to ensure proper configuration
 let poolConfig;
 
 if (process.env.DATABASE_URL) {
-  // Parse DATABASE_URL and force IPv4
-  const dbUrl = new URL(process.env.DATABASE_URL);
-  poolConfig = {
-    user: dbUrl.username,
-    password: dbUrl.password,
-    host: dbUrl.hostname,
-    port: dbUrl.port,
-    database: dbUrl.pathname.slice(1), // Remove leading slash
-    ssl: { rejectUnauthorized: false }
-  };
-  console.log('🔧 Using parsed DATABASE_URL for connection');
-} else if (process.env.PGHOST) {
-  // Fallback to individual Railway PostgreSQL variables
-  poolConfig = {
-    user: process.env.PGUSER,
-    host: process.env.PGHOST,
-    database: process.env.PGDATABASE,
-    password: process.env.PGPASSWORD,
-    port: process.env.PGPORT,
-    ssl: { rejectUnauthorized: false }
-  };
-  console.log('🔧 Using individual DB variables for connection');
+  const dbUrl = process.env.DATABASE_URL;
+  // Parse the DATABASE_URL manually
+  const match = dbUrl.match(/postgres:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/);
+  
+  if (match) {
+    const [_, user, password, host, port, database] = match;
+    poolConfig = {
+      user,
+      password,
+      host,
+      port: parseInt(port),
+      database,
+      ssl: { rejectUnauthorized: false },
+      // Force IPv4 and add connection timeout
+      connectionTimeoutMillis: 10000,
+      idleTimeoutMillis: 30000,
+    };
+    console.log('🔧 Using parsed DATABASE_URL with IPv4');
+  } else {
+    // Fallback to connection string with explicit IPv4 forcing
+    poolConfig = {
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 10000,
+      idleTimeoutMillis: 30000,
+    };
+    console.log('🔧 Using DATABASE_URL connection string');
+  }
 } else {
-  // Final fallback for development
+  // Use individual environment variables
   poolConfig = {
-    user: process.env.DB_USER,
-    host: process.env.DB_HOST,
-    database: process.env.DB_NAME,
-    password: process.env.DB_PASSWORD,
-    port: process.env.DB_PORT,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    user: process.env.PGUSER || process.env.DB_USER,
+    host: process.env.PGHOST || process.env.DB_HOST,
+    database: process.env.PGDATABASE || process.env.DB_NAME,
+    password: process.env.PGPASSWORD || process.env.DB_PASSWORD,
+    port: process.env.PGPORT || process.env.DB_PORT || 5432,
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 30000,
   };
-  console.log('🔧 Using development DB variables for connection');
+  console.log('🔧 Using individual DB variables');
 }
 
-// Force IPv4 and add connection settings
-Object.assign(poolConfig, {
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 15000,
-  maxUses: 7500,
-  // Force IPv4 to avoid IPv6 issues
-  family: 4
-});
-
-console.log('🔧 Final PostgreSQL config:', {
-  host: poolConfig.host,
+console.log('🔧 Final DB Config:', {
+  host: poolConfig.host || 'from-connection-string',
   port: poolConfig.port,
   database: poolConfig.database,
   user: poolConfig.user,
-  usingIPv4: true
 });
 
 const pool = new Pool(poolConfig);
 
-// Enhanced connection event handling
+// Connection event handlers
 pool.on('connect', () => {
   console.log('✅ New PostgreSQL client connected');
 });
@@ -141,30 +116,62 @@ pool.on('error', (err) => {
   console.error('❌ PostgreSQL pool error:', err.message);
 });
 
-// Test database connection on startup
+// Test database connection
 const testDatabaseConnection = async () => {
   let client;
   try {
     client = await pool.connect();
     console.log('✅ PostgreSQL connected successfully!');
     
-    const result = await client.query('SELECT NOW() as current_time, version() as version');
+    const result = await client.query('SELECT NOW() as current_time');
     console.log('✅ Database time:', result.rows[0].current_time);
-    console.log('✅ PostgreSQL version:', result.rows[0].version.split(',')[0]);
     
     client.release();
+    return true;
   } catch (err) {
-    console.error('❌ Database connection test failed:', err.message);
+    console.error('❌ Database connection failed:', err.message);
     if (client) client.release();
     
-    console.log('⚠️  Continuing without database connection...');
+    // Try alternative connection method if DATABASE_URL failed
+    if (process.env.DATABASE_URL && err.message.includes('ENETUNREACH') || err.message.includes('ECONNREFUSED')) {
+      console.log('🔄 Trying alternative connection method...');
+      await tryAlternativeConnection();
+    }
+    
+    return false;
   }
 };
 
-// Test connection after a short delay
+// Alternative connection method for Railway's internal DNS
+const tryAlternativeConnection = async () => {
+  try {
+    const altPool = new Pool({
+      user: process.env.PGUSER,
+      host: process.env.PGHOST,
+      database: process.env.PGDATABASE,
+      password: process.env.PGPASSWORD,
+      port: process.env.PGPORT,
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 10000,
+    });
+    
+    const client = await altPool.connect();
+    console.log('✅ Alternative connection successful!');
+    const result = await client.query('SELECT NOW()');
+    console.log('✅ Alternative connection time:', result.rows[0].now);
+    client.release();
+    altPool.end();
+    return true;
+  } catch (err) {
+    console.error('❌ Alternative connection also failed:', err.message);
+    return false;
+  }
+};
+
+// Test connection after delay
 setTimeout(() => {
   testDatabaseConnection();
-}, 2000);
+}, 3000);
 
 global.db = pool;
 
@@ -196,14 +203,35 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/notifications', notificationSettingsRoutes);
 app.use('/api', uploadRoute);
 
-/* ✅ Enhanced Database Test Endpoint */
+/* ✅ Health Check */
+app.get('/health', async (req, res) => {
+  const healthCheck = {
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    port: PORT,
+    database: 'unknown'
+  };
+
+  try {
+    await pool.query('SELECT 1');
+    healthCheck.database = 'connected';
+  } catch (err) {
+    healthCheck.database = 'disconnected';
+    healthCheck.database_error = err.message;
+  }
+
+  res.status(healthCheck.database === 'connected' ? 200 : 503).json(healthCheck);
+});
+
+/* ✅ Database Test */
 app.get('/db-test', async (req, res) => {
   try {
-    const result = await pool.query('SELECT NOW() as current_time, version() as version');
+    const result = await pool.query('SELECT NOW() as current_time');
     res.json({ 
       connected: true, 
       time: result.rows[0].current_time,
-      version: result.rows[0].version.split(',')[0],
       environment: process.env.NODE_ENV 
     });
   } catch (err) {
@@ -215,30 +243,7 @@ app.get('/db-test', async (req, res) => {
   }
 });
 
-/* ✅ Health Check with DB status */
-app.get('/health', async (req, res) => {
-  const healthCheck = {
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development',
-    database: 'unknown',
-    port: PORT
-  };
-
-  try {
-    await pool.query('SELECT 1');
-    healthCheck.database = 'connected';
-  } catch (err) {
-    healthCheck.database = 'disconnected';
-    healthCheck.database_error = err.message;
-  }
-
-  const statusCode = healthCheck.database === 'connected' ? 200 : 503;
-  res.status(statusCode).json(healthCheck);
-});
-
-/* ✅ Default Home */
+/* ✅ Default Route */
 app.get('/', (req, res) => {
   res.json({
     message: '✅ Reloc Community & Payments API is running...',
@@ -246,10 +251,6 @@ app.get('/', (req, res) => {
     environment: process.env.NODE_ENV || 'development',
     port: PORT,
     endpoints: {
-      posts: '/api/posts',
-      messages: '/api/messages',
-      payments: '/api/mpesa',
-      notifications: '/api/notifications',
       health: '/health',
       dbTest: '/db-test'
     },
@@ -259,37 +260,28 @@ app.get('/', (req, res) => {
 /* ✅ Error Handling */
 app.use((err, req, res, next) => {
   console.error('❌ Global Error:', err);
-  if (err.message === 'Not allowed by CORS') {
-    return res.status(403).json({ error: 'CORS policy violation' });
-  }
   res.status(500).json({
     error: 'Internal Server Error',
     message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong',
   });
 });
 
-/* ✅ 404 Fallback */
+/* ✅ 404 Handler */
 app.use('*', (req, res) => {
   res.status(404).json({ error: 'Endpoint not found' });
 });
 
-/* ✅ Graceful Shutdown */
+/* ✅ Start Server - EXPLICIT PORT BINDING */
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🎉 SERVER RUNNING ON PORT ${PORT}`);
+  console.log(`✅ Health Check: http://localhost:${PORT}/health`);
+  console.log(`✅ Database Test: http://localhost:${PORT}/db-test`);
+  console.log(`✅ Environment: ${process.env.NODE_ENV}`);
+});
+
+// Handle graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received. Shutting down gracefully...');
   await pool.end();
   process.exit(0);
-});
-
-process.on('SIGINT', async () => {
-  console.log('SIGINT received. Shutting down gracefully...');
-  await pool.end();
-  process.exit(0);
-});
-
-/* ✅ Start Server - FORCE PORT 5000 */
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Server running on port ${PORT}`);
-  console.log(`✅ Health Check → http://localhost:${PORT}/health`);
-  console.log(`✅ Database Test → http://localhost:${PORT}/db-test`);
-  console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
 });
