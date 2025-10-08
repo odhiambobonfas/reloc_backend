@@ -12,4 +12,3 @@ startCommand = "npm run start"
 [service.env]
 NODE_ENV = "production"
 PORT = "5000"
-ALLOWED_ORIGINS = "https://reloc-production.up.railway.app,http://localhost:3000"
