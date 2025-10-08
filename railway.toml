@@ -13,5 +13,3 @@ startCommand = "npm run start"
 NODE_ENV = "production"
 PORT = "5000"
 ALLOWED_ORIGINS = "https://reloc-production.up.railway.app,http://localhost:3000"
-
-# Remove all DB credentials - Railway injects them automatically

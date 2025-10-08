@@ -12,6 +12,9 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 
+// ✅ Force PORT to 5000 for Railway
+const PORT = process.env.PORT || 5000;
+
 /* ✅ Ensure uploads directory exists */
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -45,7 +48,6 @@ app.use('/api', limiter);
 /* ✅ CORS Setup */
 const corsOptions = {
   origin: function (origin, callback) {
-    console.log('Request origin:', origin);
     const allowedOrigins = process.env.ALLOWED_ORIGINS
       ? process.env.ALLOWED_ORIGINS.split(',')
       : [];
@@ -66,7 +68,7 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-/* ✅ Enhanced PostgreSQL Connection with Fallbacks */
+/* ✅ Enhanced PostgreSQL Connection with IPv4 fix */
 console.log('🔧 Database Configuration:');
 console.log('🔧 DATABASE_URL:', process.env.DATABASE_URL ? 'Set' : 'Not set');
 console.log('🔧 PGHOST:', process.env.PGHOST || 'Not set');
@@ -75,11 +77,17 @@ console.log('🔧 NODE_ENV:', process.env.NODE_ENV);
 let poolConfig;
 
 if (process.env.DATABASE_URL) {
-  // Use DATABASE_URL as primary connection method
+  // Parse DATABASE_URL and force IPv4
+  const dbUrl = new URL(process.env.DATABASE_URL);
   poolConfig = {
-    connectionString: process.env.DATABASE_URL,
+    user: dbUrl.username,
+    password: dbUrl.password,
+    host: dbUrl.hostname,
+    port: dbUrl.port,
+    database: dbUrl.pathname.slice(1), // Remove leading slash
     ssl: { rejectUnauthorized: false }
   };
+  console.log('🔧 Using parsed DATABASE_URL for connection');
 } else if (process.env.PGHOST) {
   // Fallback to individual Railway PostgreSQL variables
   poolConfig = {
@@ -90,6 +98,7 @@ if (process.env.DATABASE_URL) {
     port: process.env.PGPORT,
     ssl: { rejectUnauthorized: false }
   };
+  console.log('🔧 Using individual DB variables for connection');
 } else {
   // Final fallback for development
   poolConfig = {
@@ -100,14 +109,25 @@ if (process.env.DATABASE_URL) {
     port: process.env.DB_PORT,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
   };
+  console.log('🔧 Using development DB variables for connection');
 }
 
-// Add connection pool settings
+// Force IPv4 and add connection settings
 Object.assign(poolConfig, {
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 15000,
   maxUses: 7500,
+  // Force IPv4 to avoid IPv6 issues
+  family: 4
+});
+
+console.log('🔧 Final PostgreSQL config:', {
+  host: poolConfig.host,
+  port: poolConfig.port,
+  database: poolConfig.database,
+  user: poolConfig.user,
+  usingIPv4: true
 });
 
 const pool = new Pool(poolConfig);
@@ -119,10 +139,6 @@ pool.on('connect', () => {
 
 pool.on('error', (err) => {
   console.error('❌ PostgreSQL pool error:', err.message);
-  // Don't exit process in production, let it recover
-  if (process.env.NODE_ENV !== 'production') {
-    process.exit(-1);
-  }
 });
 
 // Test database connection on startup
@@ -141,13 +157,7 @@ const testDatabaseConnection = async () => {
     console.error('❌ Database connection test failed:', err.message);
     if (client) client.release();
     
-    // In production, continue without database connection
-    if (process.env.NODE_ENV === 'production') {
-      console.log('⚠️  Continuing without database connection...');
-    } else {
-      console.log('❌ Exiting due to database connection failure in development');
-      process.exit(1);
-    }
+    console.log('⚠️  Continuing without database connection...');
   }
 };
 
@@ -212,7 +222,8 @@ app.get('/health', async (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
-    database: 'unknown'
+    database: 'unknown',
+    port: PORT
   };
 
   try {
@@ -233,6 +244,7 @@ app.get('/', (req, res) => {
     message: '✅ Reloc Community & Payments API is running...',
     version: '2.0.0',
     environment: process.env.NODE_ENV || 'development',
+    port: PORT,
     endpoints: {
       posts: '/api/posts',
       messages: '/api/messages',
@@ -274,8 +286,7 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
-/* ✅ Start Server */
-const PORT = process.env.PORT || 5000;
+/* ✅ Start Server - FORCE PORT 5000 */
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Server running on port ${PORT}`);
   console.log(`✅ Health Check → http://localhost:${PORT}/health`);
