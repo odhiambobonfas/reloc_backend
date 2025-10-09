@@ -6,9 +6,9 @@ const bodyParser = require('body-parser');
 require('dotenv').config();
 const path = require('path');
 const fs = require('fs');
-const { Pool } = require('pg');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const pool = require('./db/db'); // ✅ Import the centralized pool
 
 const app = express();
 
@@ -36,24 +36,9 @@ app.use(rateLimit({
 /* ✅ CORS */
 app.use(cors());
 
-/* ✅ SIMPLE Database Connection */
-console.log('🔧 Database URL available:', !!process.env.DATABASE_URL);
-
-// Use the simplest possible connection
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
-
-// Simple connection test
-pool.connect((err, client, release) => {
-  if (err) {
-    console.error('❌ Database connection error:', err.message);
-  } else {
-    console.log('✅ Database connected successfully!');
-    release();
-  }
-});
+/* ✅ Database Connection */
+// The connection is now handled in db/db.js
+console.log('🔧 Centralized database connection logic is in use.');
 
 global.db = pool;
 
@@ -87,41 +72,13 @@ app.use('/api', uploadRoute);
 
 /* ✅ Health Check */
 app.get('/health', async (req, res) => {
-  try {
-    await pool.query('SELECT 1');
-    res.json({ 
-      status: 'OK', 
-      database: 'connected',
-      port: PORT,
-      environment: process.env.NODE_ENV 
-    });
-  } catch (err) {
-    res.json({ 
-      status: 'OK', 
-      database: 'disconnected',
-      port: PORT,
-      environment: process.env.NODE_ENV,
-      error: err.message 
-    });
-  }
-});
-
-/* ✅ Database Test */
-app.get('/db-test', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT NOW()');
-    res.json({ 
-      connected: true, 
-      time: result.rows[0].now,
-      port: PORT 
-    });
-  } catch (err) {
-    res.json({ 
-      connected: false, 
-      error: err.message,
-      port: PORT 
-    });
-  }
+  // The database connection is now managed and tested in db/db.js
+  // This endpoint just confirms the server is running.
+  res.json({ 
+    status: 'OK', 
+    port: PORT,
+    environment: process.env.NODE_ENV 
+  });
 });
 
 /* ✅ Default Route */
