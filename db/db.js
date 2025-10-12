@@ -29,27 +29,16 @@ if (process.env.DATABASE_URL) {
   };
   console.log("🔧 Using DATABASE_URL for connection");
 } else {
-  // Fallback to individual environment variables
-  poolConfig = {
-    user: process.env.PGUSER || process.env.DB_USER || "postgres",
-    host: process.env.PGHOST || process.env.DB_HOST || "ballast.proxy.rlwy.net",
-    database: process.env.PGDATABASE || process.env.DB_NAME || "railway",
-    password: process.env.PGPASSWORD || process.env.DB_PASSWORD,
-    port: process.env.PGPORT || process.env.DB_PORT || 30559,
-    ssl: isProduction ? { 
-      rejectUnauthorized: false 
-    } : false
-  };
-  console.log("🔧 Using individual DB variables for connection");
+  console.error("❌ DATABASE_URL is not set. Please set it in your environment variables.");
+  process.exit(1);
 }
 
 // Add connection pool settings
 Object.assign(poolConfig, {
   max: 20,
-  idleTimeoutMillis: 60000,
-  connectionTimeoutMillis: 20000, // Increased timeout for Railway
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 15000,
   maxUses: 7500, // Close connection after 7500 queries
-  family: 4, // Force IPv4
 });
 
 console.log("🔧 Final connection config:", {
@@ -57,8 +46,7 @@ console.log("🔧 Final connection config:", {
   port: poolConfig.port || poolConfig.connectionString?.split(':').pop()?.split('/')[0] || 'from DATABASE_URL',
   database: poolConfig.database || 'from DATABASE_URL',
   user: poolConfig.user || 'from DATABASE_URL',
-  ssl: poolConfig.ssl,
-  family: poolConfig.family
+  ssl: poolConfig.ssl
 });
 
 const pool = new Pool(poolConfig);
