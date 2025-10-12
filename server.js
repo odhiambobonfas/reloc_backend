@@ -39,7 +39,6 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',');
 
 app.use(cors({
   origin: (origin, callback) => {
-    console.log('Request origin:', origin); // Log the origin for debugging
     // Allow all origins in non-production environments
     if (process.env.NODE_ENV !== 'production') {
       return callback(null, true);
