@@ -53,7 +53,8 @@ console.log("🔧 Final connection config:", {
   port: poolConfig.port || poolConfig.connectionString?.split(':').pop()?.split('/')[0] || 'from DATABASE_URL',
   database: poolConfig.database || 'from DATABASE_URL',
   user: poolConfig.user || 'from DATABASE_URL',
-  ssl: poolConfig.ssl
+  ssl: poolConfig.ssl,
+  family: poolConfig.family
 });
 
 const pool = new Pool(poolConfig);
