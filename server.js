@@ -13,7 +13,7 @@ const pool = require('./db/db'); // ✅ Import the centralized pool
 const app = express();
 
 // ✅ CRITICAL: Force PORT 5000
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 console.log(`🚀 Starting server on PORT: ${PORT}`);
 
 /* ✅ Ensure uploads directory exists */
@@ -34,7 +34,20 @@ app.use(rateLimit({
 }));
 
 /* ✅ CORS */
-app.use(cors());
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',');
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  }
+}));
 
 /* ✅ Database Connection */
 // The connection is now handled in db/db.js

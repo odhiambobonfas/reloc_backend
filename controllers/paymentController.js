@@ -3,6 +3,10 @@ const pool = require("../db/db");
 const getMpesaToken = require("../db/mpesaAuth");
 require("dotenv").config();
 
+const mpesaBaseUrl = process.env.MPESA_ENVIRONMENT === 'production'
+  ? 'https://api.safaricom.co.ke'
+  : 'https://sandbox.safaricom.co.ke';
+
 /* ✅ SAVE TRANSACTION */
 async function saveTransaction(userId, type, amount, status, phone) {
   try {
@@ -50,7 +54,7 @@ exports.deposit = async (req, res) => {
     ).toString("base64");
 
     const stkRes = await axios.post(
-      "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
+      `${mpesaBaseUrl}/mpesa/stkpush/v1/processrequest`,
       {
         BusinessShortCode: process.env.MPESA_SHORTCODE,
         Password: password,
@@ -99,7 +103,7 @@ exports.payment = async (req, res) => {
     ).toString("base64");
 
     const stkRes = await axios.post(
-      "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
+      `${mpesaBaseUrl}/mpesa/stkpush/v1/processrequest`,
       {
         BusinessShortCode: process.env.MPESA_SHORTCODE,
         Password: password,
@@ -144,7 +148,7 @@ exports.withdraw = async (req, res) => {
     const token = await getMpesaToken();
 
     const b2cRes = await axios.post(
-      "https://sandbox.safaricom.co.ke/mpesa/b2c/v1/paymentrequest",
+      `${mpesaBaseUrl}/mpesa/b2c/v1/paymentrequest`,
       {
         InitiatorName: process.env.MPESA_INITIATOR,
         SecurityCredential: process.env.MPESA_SECURITY_CREDENTIAL,

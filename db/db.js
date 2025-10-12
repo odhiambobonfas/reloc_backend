@@ -16,18 +16,13 @@ console.log("🔧 NODE_ENV:", process.env.NODE_ENV);
 let poolConfig;
 
 if (process.env.DATABASE_URL) {
-  const dbUrl = new URL(process.env.DATABASE_URL);
   poolConfig = {
-    user: dbUrl.username,
-    password: dbUrl.password,
-    host: dbUrl.hostname,
-    port: dbUrl.port,
-    database: dbUrl.pathname.slice(1),
+    connectionString: process.env.DATABASE_URL,
     ssl: {
       rejectUnauthorized: false,
     },
   };
-  console.log("🔧 Using DATABASE_URL for connection");
+  console.log("🔧 Using DATABASE_URL for connection with connection string.");
 } else {
   console.error("❌ DATABASE_URL is not set. Please set it in your environment variables.");
   process.exit(1);
@@ -42,10 +37,7 @@ Object.assign(poolConfig, {
 });
 
 console.log("🔧 Final connection config:", {
-  host: poolConfig.host || poolConfig.connectionString?.split('@')[1]?.split(':')[0] || 'from DATABASE_URL',
-  port: poolConfig.port || poolConfig.connectionString?.split(':').pop()?.split('/')[0] || 'from DATABASE_URL',
-  database: poolConfig.database || 'from DATABASE_URL',
-  user: poolConfig.user || 'from DATABASE_URL',
+  connectionString: poolConfig.connectionString ? "Set from DATABASE_URL" : "Not set",
   ssl: poolConfig.ssl
 });
 
@@ -105,13 +97,9 @@ const testConnection = async (retries = 3, delay = 5000) => {
       } else {
         console.error("❌ All connection attempts failed");
         console.error("❌ Final connection details:", {
-          host: poolConfig.host || 'from DATABASE_URL',
-          port: poolConfig.port || 'from DATABASE_URL',
-          database: poolConfig.database || 'from DATABASE_URL',
-          user: poolConfig.user || 'from DATABASE_URL',
-          hasPassword: !!poolConfig.password,
+          usingDatabaseUrl: !!process.env.DATABASE_URL,
+          connectionString: poolConfig.connectionString ? "Set" : "Not set",
           ssl: poolConfig.ssl,
-          usingDatabaseUrl: !!process.env.DATABASE_URL
         });
         
         if (!isProduction) {
