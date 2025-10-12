@@ -42,9 +42,10 @@ if (process.env.DATABASE_URL) {
 // Add connection pool settings
 Object.assign(poolConfig, {
   max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 15000, // Increased timeout for Railway
+  idleTimeoutMillis: 60000,
+  connectionTimeoutMillis: 20000, // Increased timeout for Railway
   maxUses: 7500, // Close connection after 7500 queries
+  family: 4, // Force IPv4
 });
 
 console.log("🔧 Final connection config:", {
