@@ -16,12 +16,16 @@ console.log("🔧 NODE_ENV:", process.env.NODE_ENV);
 let poolConfig;
 
 if (process.env.DATABASE_URL) {
-  // Use DATABASE_URL with SSL
+  const dbUrl = new URL(process.env.DATABASE_URL);
   poolConfig = {
-    connectionString: process.env.DATABASE_URL,
+    user: dbUrl.username,
+    password: dbUrl.password,
+    host: dbUrl.hostname,
+    port: dbUrl.port,
+    database: dbUrl.pathname.slice(1),
     ssl: {
-      rejectUnauthorized: false
-    }
+      rejectUnauthorized: false,
+    },
   };
   console.log("🔧 Using DATABASE_URL for connection");
 } else {
