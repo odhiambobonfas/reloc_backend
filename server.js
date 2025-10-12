@@ -11,6 +11,7 @@ const rateLimit = require('express-rate-limit');
 const pool = require('./db/db'); // ✅ Import the centralized pool
 
 const app = express();
+app.set('trust proxy', 1);
 
 // ✅ CRITICAL: Force PORT 5000
 const PORT = process.env.PORT || 5000;
@@ -38,6 +39,7 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',');
 
 app.use(cors({
   origin: (origin, callback) => {
+    console.log('Request origin:', origin); // Log the origin for debugging
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
