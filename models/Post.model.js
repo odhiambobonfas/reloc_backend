@@ -8,7 +8,7 @@ class Post {
       
       const { rows } = await pool.query(
         'INSERT INTO posts (user_id, content, type, media_url) VALUES ($1, $2, $3, $4) RETURNING *',
-        [data.user_id, data.content, data.type, data.media_url]
+        [data.uid, data.content, data.type, data.media_url]
       );
       
       console.log('✅ Database: Post created successfully:', rows[0]);

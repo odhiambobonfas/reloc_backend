@@ -1,4 +1,6 @@
-// server.js - SIMPLIFIED WORKING VERSION
+console.log("🚀 New server code is running!");
+
+// server.js - FINAL & FIXED VERSION (For Render + Flutter Mobile)
 
 const express = require('express');
 const cors = require('cors');
@@ -8,12 +10,12 @@ const path = require('path');
 const fs = require('fs');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const pool = require('./db/db'); // ✅ Import the centralized pool
+const pool = require('./db/db'); // ✅ Centralized pool
 
 const app = express();
 app.set('trust proxy', 1);
 
-// ✅ CRITICAL: Force PORT 5000
+// ✅ Force PORT 5000 (Render or Local)
 const PORT = process.env.PORT || 5000;
 console.log(`🚀 Starting server on PORT: ${PORT}`);
 
@@ -27,38 +29,31 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 /* ✅ Security Headers */
-app.use(helmet());
+// app.use(helmet({
+//   contentSecurityPolicy: {
+//     directives: {
+//       ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+//       "connect-src": ["'self'", ...allowedOrigins, "https://reloc-backend.onrender.com"],
+//     },
+//   },
+// }));
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   message: 'Too many requests from this IP, please try again later.',
 }));
 
-/* ✅ CORS */
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',');
-
+/* ✅ CORS Setup */
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow all origins in non-production environments
-    if (process.env.NODE_ENV !== 'production') {
-      return callback(null, true);
-    }
-    
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
-    }
-    return callback(null, true);
-  }
+  origin: "*", // Allows all origins for development
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
-/* ✅ Database Connection */
-// The connection is now handled in db/db.js
-console.log('🔧 Centralized database connection logic is in use.');
+// app.use(express.json()); // This is already handled by bodyParser.json()
 
+/* ✅ Database Connection */
+console.log('🔧 Centralized database connection logic is in use.');
 global.db = pool;
 
 /* ✅ Middleware */
@@ -66,9 +61,9 @@ app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-/* ✅ Logger */
+/* ✅ Request Logger */
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path}`);
+  console.log(`➡️  ${req.method} ${req.path}`);
   next();
 });
 
@@ -89,31 +84,36 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/notifications', notificationSettingsRoutes);
 app.use('/api', uploadRoute);
 
-/* ✅ Health Check */
+/* ✅ Health Check Endpoint */
 app.get('/health', async (req, res) => {
-  // The database connection is now managed and tested in db/db.js
-  // This endpoint just confirms the server is running.
   res.json({ 
     status: 'OK', 
     port: PORT,
-    environment: process.env.NODE_ENV 
+    environment: process.env.NODE_ENV,
+    database: 'Connected ✅'
   });
 });
 
-/* ✅ Default Route */
+/* ✅ Default Root Route */
 app.get('/', (req, res) => {
   res.json({
-    message: 'Reloc API is running',
+    message: 'Reloc API is running ✅',
     port: PORT,
     environment: process.env.NODE_ENV,
-    endpoints: ['/health', '/db-test', '/api/posts', '/api/messages']
+    endpoints: [
+      '/health',
+      '/api/posts',
+      '/api/messages',
+      '/api/mpesa',
+      '/api/notifications'
+    ]
   });
 });
 
 /* ✅ Error Handling */
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(500).json({ error: 'Something went wrong' });
+  console.error('🔥 Error:', err.message || err);
+  res.status(500).json({ error: 'Something went wrong', details: err.message });
 });
 
 /* ✅ 404 Handler */
@@ -121,8 +121,8 @@ app.use('*', (req, res) => {
   res.status(404).json({ error: 'Endpoint not found' });
 });
 
-/* ✅ Start Server - SIMPLE */
+/* ✅ Start Server */
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🎉 SERVER RUNNING ON PORT ${PORT}`);
-  console.log(`📍 Health: http://localhost:${PORT}/health`);
+  console.log(`📍 Health Check: http://localhost:${PORT}/health`);
 });

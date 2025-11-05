@@ -8,12 +8,12 @@ exports.createPost = async (req, res) => {
       headers: req.headers
     });
 
-    const { user_id, content, type } = req.body;
+    const { uid, content, type } = req.body;
     
     // Validate required fields
-    if (!user_id) {
-      console.error('❌ Missing user_id');
-      return res.status(400).json({ error: "user_id is required" });
+    if (!uid) {
+      console.error('❌ Missing uid');
+      return res.status(400).json({ error: "uid is required" });
     }
     
     if (!content && !req.file) {
@@ -34,14 +34,14 @@ exports.createPost = async (req, res) => {
     }
 
     console.log('💾 Saving post to database:', {
-      user_id,
+      uid,
       content: content || '',
       type,
       media_url
     });
 
     const post = await Post.create({
-      user_id,
+      uid,
       content: content || '',
       type,
       media_url,
@@ -78,7 +78,9 @@ exports.getPosts = async (req, res) => {
     const posts = await Post.findAll(limit, offset, type);
 
     console.log(`✅ Fetched ${posts.length} posts`);
-    res.json(posts);
+    const response = { success: true, data: posts };
+    console.log('✅ Sending response:', JSON.stringify(response, null, 2));
+    res.json(response);
   } catch (error) {
     console.error("❌ Error fetching posts:", error);
     console.error("❌ Error stack:", error.stack);

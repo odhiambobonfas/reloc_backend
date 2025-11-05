@@ -1,4 +1,5 @@
 const pool = global.db || require('../db/db');
+const User = require('./userModel');
 
 const createComment = async ({ post_id, parent_id, user_id, content }) => {
   try {
@@ -28,7 +29,6 @@ const getCommentsByPost = async (post_id) => {
   try {
     console.log('🗄️ Database: Fetching comments for post:', post_id);
     
-    // First, check if the created_at column exists
     const checkColumnQuery = `
       SELECT column_name 
       FROM information_schema.columns 
@@ -42,7 +42,6 @@ const getCommentsByPost = async (post_id) => {
       throw new Error('Database schema is missing required columns. Please run the migration script.');
     }
     
-    // Get all comments for the post
     const result = await pool.query(
       `SELECT * FROM comments WHERE post_id = $1 ORDER BY created_at ASC`,
       [post_id]
@@ -52,28 +51,28 @@ const getCommentsByPost = async (post_id) => {
     
     const comments = result.rows;
     
-    // Build tree structure
     const commentMap = new Map();
     const rootComments = [];
     
-    // First pass: create a map of all comments
-    comments.forEach(comment => {
+    for (const comment of comments) {
+      const user = await User.getUserById(comment.user_id);
       commentMap.set(comment.id, {
         ...comment,
+        user: {
+          name: user ? user.name : 'Unknown User',
+          photoUrl: user ? user.photo_url : ''
+        },
         replies: []
       });
-    });
+    }
     
-    // Second pass: build the tree structure
     comments.forEach(comment => {
       if (comment.parent_id) {
-        // This is a reply
         const parentComment = commentMap.get(comment.parent_id);
         if (parentComment) {
           parentComment.replies.push(commentMap.get(comment.id));
         }
       } else {
-        // This is a root comment
         rootComments.push(commentMap.get(comment.id));
       }
     });
