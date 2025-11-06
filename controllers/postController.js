@@ -78,9 +78,7 @@ exports.getPosts = async (req, res) => {
     const posts = await Post.findAll(limit, offset, type);
 
     console.log(`✅ Fetched ${posts.length} posts`);
-    const response = { success: true, data: posts };
-    console.log('✅ Sending response:', JSON.stringify(response, null, 2));
-    res.json(response);
+    res.json(posts);
   } catch (error) {
     console.error("❌ Error fetching posts:", error);
     console.error("❌ Error stack:", error.stack);
