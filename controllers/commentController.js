@@ -24,7 +24,7 @@ const getComments = async (req, res) => {
   try {
     const { postId } = req.params;
     const comments = await Comment.getCommentsByPost(postId);
-    res.json(comments);
+    res.json({ data: comments });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch comments" });
