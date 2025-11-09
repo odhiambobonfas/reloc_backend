@@ -27,7 +27,7 @@ const fetchMessages = async (req, res) => {
     const { userId, receiverId, post_id } = req.query;
     if (!userId || !receiverId) return res.status(400).json({ error: "Missing uids" });
 
-    const messages = await Message.getMessagesBetweenUsers(userId, receiverId, post_id);
+    const messages = await Message.getMessages(userId, receiverId, post_id);
     res.json({ success: true, data: messages });
   } catch (err) {
     console.error(err);
