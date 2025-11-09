@@ -10,11 +10,11 @@ const getCurrentUserId = (req) => {
 
 const sendMessage = async (req, res) => {
   try {
-    const { senderId: sender_id, receiverId: receiver_id, post_id, content } = req.body;
-    if (!sender_id || !receiver_id || !content)
+    const { senderId, receiverId, post_id, content } = req.body;
+    if (!senderId || !receiverId || !content)
       return res.status(400).json({ error: "Missing fields" });
 
-    const message = await Message.createMessage({ sender_id, receiver_id, post_id, content });
+    const message = await Message.createMessage({ sender_id: senderId, receiver_id: receiverId, post_id, content });
     res.status(201).json({ success: true, message });
   } catch (err) {
     console.error(err);
@@ -24,10 +24,10 @@ const sendMessage = async (req, res) => {
 
 const fetchMessages = async (req, res) => {
   try {
-    const { userId: uid1, receiverId: uid2, post_id } = req.query;
-    if (!uid1 || !uid2) return res.status(400).json({ error: "Missing uids" });
+    const { userId, receiverId, post_id } = req.query;
+    if (!userId || !receiverId) return res.status(400).json({ error: "Missing uids" });
 
-    const messages = await Message.getMessagesBetweenUsers(uid1, uid2, post_id);
+    const messages = await Message.getMessagesBetweenUsers(userId, receiverId, post_id);
     res.json({ success: true, data: messages });
   } catch (err) {
     console.error(err);
