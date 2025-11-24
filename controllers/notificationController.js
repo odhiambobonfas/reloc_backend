@@ -33,19 +33,12 @@ const fetchNotifications = async (req, res) => {
     }
 
     const notifications = await Notification.getNotificationsForUser(user_id);
-<<<<<<< HEAD
-    res.json({ success: true, data: notifications });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: "Failed to fetch notifications" });
-=======
     console.log('✅ Fetched notifications:', notifications.length, 'notifications');
     res.json({ success: true, data: notifications });
   } catch (err) {
     console.error('❌ Error fetching notifications:', err.message);
     console.error('Full error:', err);
     res.status(500).json({ success: false, error: "Failed to fetch notifications", message: err.message });
->>>>>>> 98ff0d3 (your message)
   }
 };
 
