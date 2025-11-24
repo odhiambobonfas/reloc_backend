@@ -50,15 +50,19 @@ const fetchConversations = async (req, res) => {
 const sendMessageByChatId = async (req, res) => {
   try {
     const { chatId } = req.params;
-    const { content, type = 'text', receiverId, senderId } = req.body;
+    const { content, type = 'text', receiverId } = req.body;
     if (!chatId || !content) return res.status(400).json({ error: 'Missing fields' });
 
     const { uid1, uid2 } = parseChatId(chatId);
     if (!uid1 || !uid2) return res.status(400).json({ error: 'Invalid chatId' });
 
+    // Get current user from query or determine from chatId
+    const currentUid = getCurrentUserId(req) || uid1;
+    const otherUid = receiverId || (currentUid === uid1 ? uid2 : uid1);
+
     const message = await Message.createMessage({
-      sender_id: senderId || uid1,
-      receiver_id: receiverId || uid2,
+      sender_id: currentUid,
+      receiver_id: otherUid,
       post_id: null,
       content,
       type,

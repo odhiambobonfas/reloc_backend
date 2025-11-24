@@ -81,7 +81,29 @@ class Message {
       throw error;
     }
   }
+
+  static async getMessagesBetweenUsers(userId1, userId2, postId) {
+    try {
+      console.log('🗄️ Database: Fetching messages between users:', userId1, userId2);
+      
+      let query = 'SELECT * FROM messages WHERE ((sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1))';
+      const values = [userId1, userId2];
+
+      if (postId) {
+        query += ' AND post_id = $3';
+        values.push(postId);
+      }
+
+      query += ' ORDER BY created_at ASC';
+
+      const result = await pool.query(query, values);
+      console.log('✅ Database: Fetched messages:', result.rows);
+      return result.rows;
+    } catch (error) {
+      console.error('❌ Database: Error fetching messages:', error);
+      throw error;
+    }
+  }
 }
 
-module.exports = Message;
 module.exports = Message;
