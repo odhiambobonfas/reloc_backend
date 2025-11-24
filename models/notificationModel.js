@@ -17,13 +17,20 @@ const createNotification = async ({ user_id, type, title, message, post_id }) =>
 };
 
 const getNotificationsForUser = async (user_id) => {
-  const result = await pool.query(
-    `SELECT * FROM notifications
-     WHERE user_id=$1
-     ORDER BY created_at DESC`,
-    [user_id]
-  );
-  return result.rows;
+  try {
+    console.log('📊 Database query for notifications, user_id:', user_id);
+    const result = await pool.query(
+      `SELECT * FROM notifications
+       WHERE user_id=$1
+       ORDER BY created_at DESC`,
+      [user_id]
+    );
+    console.log('✅ Database returned:', result.rows.length, 'rows');
+    return result.rows;
+  } catch (error) {
+    console.error('❌ Database error in getNotificationsForUser:', error.message);
+    throw error;
+  }
 };
 
 const markAsRead = async (notification_id) => {

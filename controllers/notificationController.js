@@ -25,13 +25,27 @@ const addNotification = async (req, res) => {
 const fetchNotifications = async (req, res) => {
   try {
     const { user_id } = req.query;
-    if (!user_id) return res.status(400).json({ error: "Missing user_id" });
+    console.log('🔔 Fetching notifications for user:', user_id);
+    
+    if (!user_id) {
+      console.log('❌ Missing user_id in query');
+      return res.status(400).json({ success: false, error: "Missing user_id" });
+    }
 
     const notifications = await Notification.getNotificationsForUser(user_id);
+<<<<<<< HEAD
     res.json({ success: true, data: notifications });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: "Failed to fetch notifications" });
+=======
+    console.log('✅ Fetched notifications:', notifications.length, 'notifications');
+    res.json({ success: true, data: notifications });
+  } catch (err) {
+    console.error('❌ Error fetching notifications:', err.message);
+    console.error('Full error:', err);
+    res.status(500).json({ success: false, error: "Failed to fetch notifications", message: err.message });
+>>>>>>> 98ff0d3 (your message)
   }
 };
 
