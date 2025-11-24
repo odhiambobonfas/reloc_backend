@@ -1,4 +1,4 @@
-console.log("🚀 New server code is running!");
+console.log("🚀 Server v2.0 - Notifications enabled!");
 
 // server.js - FINAL & FIXED VERSION (For Render + Flutter Mobile)
 
