@@ -46,7 +46,10 @@ class Message {
       const conversations = await Promise.all(
         result.rows.map(async (r) => {
           const otherId = r.sender_id === uid ? r.receiver_id : r.sender_id;
+          console.log(`🔍 Fetching user data for ID: ${otherId}`);
+          
           const otherUser = await User.getUserById(otherId);
+          console.log(`👤 User data retrieved:`, otherUser);
 
           let postContent = null;
           if (r.post_id) {
@@ -56,12 +59,18 @@ class Message {
             }
           }
 
+          // Use display name or email if name is not available
+          let displayName = 'User';
+          if (otherUser) {
+            displayName = otherUser.name || otherUser.displayName || otherUser.email || otherId;
+          }
+
           return {
             id: `${[uid, otherId].sort().join('_')}`,
             otherUser: {
               id: otherId,
-              name: otherUser ? otherUser.name : `User ${otherId}`,
-              photoUrl: otherUser ? otherUser.photo_url : '',
+              name: displayName,
+              photoUrl: otherUser ? (otherUser.photo_url || otherUser.photoURL || '') : '',
             },
             lastMessage: {
               content: r.content,

@@ -75,6 +75,7 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const notificationSettingsRoutes = require('./routes/notificationSettingsRoutes');
 const uploadRoute = require('./routes/uploadRoute');
+const userRoutes = require('./routes/userRoutes');
 
 app.use('/api', postRoutes);
 app.use('/api/posts', commentRoutes);
@@ -83,6 +84,7 @@ app.use('/api/mpesa', paymentRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/notifications', notificationSettingsRoutes);
 app.use('/api', uploadRoute);
+app.use('/api/users', userRoutes);
 
 /* ✅ Health Check Endpoint */
 app.get('/health', async (req, res) => {
