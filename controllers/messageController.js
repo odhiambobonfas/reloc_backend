@@ -1,4 +1,6 @@
 const Message = require("../models/messageModel");
+const Notification = require("../models/notificationModel");
+const User = require("../models/userModel");
 
 // A helper function to get the current user's ID from the request.
 // This is a placeholder and should be replaced with a proper authentication middleware.
@@ -67,6 +69,24 @@ const sendMessageByChatId = async (req, res) => {
       content,
       type,
     });
+
+    // Send notification to receiver about new message
+    try {
+      const sender = await User.getUserById(currentUid);
+      const senderName = sender ? sender.name : 'Someone';
+      
+      await Notification.createNotification({
+        user_id: otherUid,
+        type: 'message',
+        title: 'New Message',
+        message: `${senderName} sent you a message`,
+        sender_id: currentUid
+      });
+      console.log('\ud83d\udd14 Message notification sent to receiver');
+    } catch (notifError) {
+      console.error('\u26a0\ufe0f Failed to send message notification:', notifError);
+    }
+
     return res.status(201).json({ success: true, message });
   } catch (err) {
     console.error(err);

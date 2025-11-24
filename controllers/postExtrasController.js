@@ -1,5 +1,7 @@
 const Post = require('../models/Post.model');
 const pool = require('../db/db');
+const Notification = require('../models/notificationModel');
+const User = require('../models/userModel');
 
 const likePost = async (req, res) => {
   try {
@@ -8,6 +10,28 @@ const likePost = async (req, res) => {
     if (!id || !userId) return res.status(400).json({ error: 'Missing post id or user id' });
 
     const updatedPost = await Post.toggleLike(id, userId);
+    
+    // Notify post author about the like
+    try {
+      const post = await Post.findById(id);
+      if (post && post.uid !== userId && updatedPost.likes > 0) {
+        const liker = await User.getUserById(userId);
+        const likerName = liker ? liker.name : 'Someone';
+        
+        await Notification.createNotification({
+          user_id: post.uid,
+          type: 'like',
+          title: 'New Like',
+          message: `${likerName} liked your post`,
+          post_id: id,
+          sender_id: userId
+        });
+        console.log('\ud83d\udd14 Like notification sent to post author');
+      }
+    } catch (notifError) {
+      console.error('\u26a0\ufe0f Failed to send like notification:', notifError);
+    }
+
     return res.json({ success: true, likes: updatedPost.likes });
   } catch (err) {
     console.error(err);

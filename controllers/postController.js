@@ -1,4 +1,6 @@
 const Post = require('../models/Post.model');
+const Notification = require('../models/notificationModel');
+const User = require('../models/userModel');
 
 exports.createPost = async (req, res) => {
   try {
@@ -48,6 +50,31 @@ exports.createPost = async (req, res) => {
     });
 
     console.log('✅ Post created successfully:', post);
+
+    // Send notification to all users about new post
+    try {
+      const allUsers = await User.getAllUsers();
+      const postAuthor = await User.getUserById(uid);
+      const authorName = postAuthor ? postAuthor.name : 'Someone';
+      
+      for (const user of allUsers) {
+        // Don't notify the author
+        if (user.id !== uid) {
+          await Notification.createNotification({
+            user_id: user.id,
+            type: 'post',
+            title: 'New Post',
+            message: `${authorName} shared a new post`,
+            post_id: post.id,
+            sender_id: uid
+          });
+        }
+      }
+      console.log('🔔 Notifications sent to all users');
+    } catch (notifError) {
+      console.error('⚠️ Failed to send notifications:', notifError);
+      // Don't fail the request if notifications fail
+    }
 
     res.status(201).json({ 
       success: true, 

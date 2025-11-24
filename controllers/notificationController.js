@@ -28,10 +28,10 @@ const fetchNotifications = async (req, res) => {
     if (!user_id) return res.status(400).json({ error: "Missing user_id" });
 
     const notifications = await Notification.getNotificationsForUser(user_id);
-    res.json(notifications);
+    res.json({ success: true, data: notifications });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to fetch notifications" });
+    res.status(500).json({ success: false, error: "Failed to fetch notifications" });
   }
 };
 
