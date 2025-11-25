@@ -61,10 +61,22 @@ const upload = multer({
     fileSize: 50 * 1024 * 1024 // 50MB limit
   },
   fileFilter: (req, file, cb) => {
-    // Accept images and videos
-    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
+    console.log('📎 File upload attempt:', {
+      fieldname: file.fieldname,
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size
+    });
+
+    // Accept images and videos, or if mimetype is not set
+    if (!file.mimetype || 
+        file.mimetype.startsWith('image/') || 
+        file.mimetype.startsWith('video/') ||
+        file.mimetype === 'application/octet-stream') {
+      console.log('✅ File accepted');
       cb(null, true);
     } else {
+      console.log('❌ File rejected - invalid type');
       cb(new Error('Only image and video files are allowed!'), false);
     }
   }

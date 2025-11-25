@@ -8,11 +8,14 @@ exports.createPost = async (req, res) => {
     console.log('📝 Creating post with data:', {
       body: req.body,
       file: req.file ? {
+        fieldname: req.file.fieldname,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
         filename: req.file.filename,
         path: req.file.path,
-        cloudinaryUrl: req.file.path
+        size: req.file.size
       } : 'No file',
-      headers: req.headers
+      contentType: req.headers['content-type']
     });
 
     const { uid, content, type } = req.body;
