@@ -1,33 +1,58 @@
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
+const path = require('path');
 
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
+// Check if Cloudinary is configured
+const isCloudinaryConfigured = 
+  process.env.CLOUDINARY_CLOUD_NAME && 
+  process.env.CLOUDINARY_API_KEY && 
+  process.env.CLOUDINARY_API_SECRET;
 
-// Create storage engine for multer
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: async (req, file) => {
-    // Determine folder based on file type
-    const isVideo = file.mimetype.startsWith('video/');
-    
-    return {
-      folder: isVideo ? 'reloc/videos' : 'reloc/images',
-      resource_type: isVideo ? 'video' : 'image',
-      allowed_formats: isVideo 
-        ? ['mp4', 'mov', 'avi', 'wmv', 'flv', 'webm']
-        : ['jpg', 'jpeg', 'png', 'gif', 'webp'],
-      transformation: isVideo 
-        ? [{ quality: 'auto', fetch_format: 'auto' }]
-        : [{ quality: 'auto', fetch_format: 'auto', width: 1000, crop: 'limit' }]
-    };
-  }
-});
+let storage;
+
+if (isCloudinaryConfigured) {
+  console.log('✅ Cloudinary configured - using cloud storage');
+  
+  // Configure Cloudinary
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+  });
+
+  // Create Cloudinary storage engine for multer
+  storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: async (req, file) => {
+      // Determine folder based on file type
+      const isVideo = file.mimetype.startsWith('video/');
+      
+      return {
+        folder: isVideo ? 'reloc/videos' : 'reloc/images',
+        resource_type: isVideo ? 'video' : 'image',
+        allowed_formats: isVideo 
+          ? ['mp4', 'mov', 'avi', 'wmv', 'flv', 'webm']
+          : ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+        transformation: isVideo 
+          ? [{ quality: 'auto', fetch_format: 'auto' }]
+          : [{ quality: 'auto', fetch_format: 'auto', width: 1000, crop: 'limit' }]
+      };
+    }
+  });
+} else {
+  console.log('⚠️  Cloudinary not configured - using local storage (files will be lost on Render restart)');
+  
+  // Fallback to local disk storage
+  storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, 'uploads/');
+    },
+    filename: (req, file, cb) => {
+      cb(null, Date.now() + path.extname(file.originalname));
+    },
+  });
+}
 
 // Create multer upload instance
 const upload = multer({
@@ -45,4 +70,4 @@ const upload = multer({
   }
 });
 
-module.exports = { cloudinary, upload };
+module.exports = { cloudinary, upload, isCloudinaryConfigured };

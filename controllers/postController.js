@@ -1,6 +1,7 @@
 const Post = require('../models/Post.model');
 const Notification = require('../models/notificationModel');
 const User = require('../models/userModel');
+const { isCloudinaryConfigured } = require('../config/cloudinary');
 
 exports.createPost = async (req, res) => {
   try {
@@ -35,9 +36,15 @@ exports.createPost = async (req, res) => {
     let media_url = null;
 
     if (req.file) {
-      // Cloudinary automatically uploads and returns the URL in req.file.path
-      media_url = req.file.path;
-      console.log('📁 Media file uploaded to Cloudinary:', media_url);
+      if (isCloudinaryConfigured) {
+        // Cloudinary automatically uploads and returns the URL in req.file.path
+        media_url = req.file.path;
+        console.log('📁 Media file uploaded to Cloudinary:', media_url);
+      } else {
+        // Local storage - construct URL path
+        media_url = `/uploads/${req.file.filename}`;
+        console.log('📁 Media file uploaded to local storage:', media_url);
+      }
     }
 
     console.log('💾 Saving post to database:', {
