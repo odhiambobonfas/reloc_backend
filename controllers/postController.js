@@ -6,7 +6,11 @@ exports.createPost = async (req, res) => {
   try {
     console.log('📝 Creating post with data:', {
       body: req.body,
-      file: req.file ? req.file.filename : 'No file',
+      file: req.file ? {
+        filename: req.file.filename,
+        path: req.file.path,
+        cloudinaryUrl: req.file.path
+      } : 'No file',
       headers: req.headers
     });
 
@@ -31,8 +35,9 @@ exports.createPost = async (req, res) => {
     let media_url = null;
 
     if (req.file) {
-      media_url = `/uploads/${req.file.filename}`;
-      console.log('📁 Media file uploaded:', media_url);
+      // Cloudinary automatically uploads and returns the URL in req.file.path
+      media_url = req.file.path;
+      console.log('📁 Media file uploaded to Cloudinary:', media_url);
     }
 
     console.log('💾 Saving post to database:', {
