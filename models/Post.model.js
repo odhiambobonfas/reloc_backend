@@ -29,16 +29,23 @@ class Post {
     try {
       console.log('🗄️ Database: Fetching posts with params:', { limit, offset, type });
       
-      let baseQ = 'SELECT * FROM posts';
+      let baseQ = `
+        SELECT 
+          p.*,
+          COALESCE(u.name, u.displayName, u.email, 'Anonymous') as author,
+          u.photo_url as author_photo
+        FROM posts p
+        LEFT JOIN users u ON p.user_id = u.firebase_uid
+      `;
       const params = [];
       let placeholderCount = 1;
 
       if (type) {
         params.push(type);
-        baseQ += ` WHERE type = $${placeholderCount++}`;
+        baseQ += ` WHERE p.type = $${placeholderCount++}`;
       }
 
-      baseQ += ' ORDER BY created_at DESC';
+      baseQ += ' ORDER BY p.created_at DESC';
 
       if (limit !== undefined) {
         params.push(limit);
