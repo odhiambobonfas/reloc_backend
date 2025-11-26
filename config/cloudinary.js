@@ -25,18 +25,29 @@ if (isCloudinaryConfigured) {
   storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: async (req, file) => {
-      // Determine folder based on file type
+      // Determine folder based on file type and upload context
       const isVideo = file.mimetype.startsWith('video/');
+      const isUserPhoto = req.path.includes('/users/') && req.path.includes('/upload-photo');
+      
+      let folder = 'reloc/images';
+      if (isVideo) {
+        folder = 'reloc/videos';
+      } else if (isUserPhoto) {
+        // Separate folders for profile photos and ID photos
+        folder = req.body.type === 'id' ? 'reloc/users/id_photos' : 'reloc/users/profile_photos';
+      }
       
       return {
-        folder: isVideo ? 'reloc/videos' : 'reloc/images',
+        folder: folder,
         resource_type: isVideo ? 'video' : 'image',
         allowed_formats: isVideo 
           ? ['mp4', 'mov', 'avi', 'wmv', 'flv', 'webm']
           : ['jpg', 'jpeg', 'png', 'gif', 'webp'],
         transformation: isVideo 
           ? [{ quality: 'auto', fetch_format: 'auto' }]
-          : [{ quality: 'auto', fetch_format: 'auto', width: 1000, crop: 'limit' }]
+          : isUserPhoto
+            ? [{ quality: 'auto', fetch_format: 'auto', width: 800, height: 800, crop: 'limit' }]
+            : [{ quality: 'auto', fetch_format: 'auto', width: 1000, crop: 'limit' }]
       };
     }
   });
