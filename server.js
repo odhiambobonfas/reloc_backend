@@ -76,6 +76,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const notificationSettingsRoutes = require('./routes/notificationSettingsRoutes');
 const uploadRoute = require('./routes/uploadRoute');
 const userRoutes = require('./routes/userRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 app.use('/api', postRoutes);
 app.use('/api/posts', commentRoutes);
@@ -85,6 +86,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/notifications', notificationSettingsRoutes);
 app.use('/api', uploadRoute);
 app.use('/api/users', userRoutes);
+app.use('/api/admin', adminRoutes);
 
 /* ✅ Health Check Endpoint */
 app.get('/health', async (req, res) => {
